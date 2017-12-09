@@ -19,44 +19,46 @@ module Audio
 import Control.Applicative ((<$>))
 import Control.Monad
 import Control.Concurrent
-import qualified Graphics.UI.SDL.Mixer.General as SDL.Mixer
-import qualified Graphics.UI.SDL.Mixer.Channels as SDL.Mixer.Channels
-import qualified Graphics.UI.SDL.Mixer.Music as SDL.Mixer.Music
-import qualified Graphics.UI.SDL.Mixer.Types as SDL.Mixer.Types
-import qualified Graphics.UI.SDL.Mixer.Samples as SDL.Mixer.Samples
+-- import qualified Graphics.UI.SDL.Mixer.General as SDL.Mixer
+-- import qualified Graphics.UI.SDL.Mixer.Channels as SDL.Mixer.Channels
+-- import qualified Graphics.UI.SDL.Mixer.Music as SDL.Mixer.Music
+-- import qualified Graphics.UI.SDL.Mixer.Types as SDL.Mixer.Types
+-- import qualified Graphics.UI.SDL.Mixer.Samples as SDL.Mixer.Samples
+import SDL.Mixer as Mixer
+import SDL.Mixer.Raw as RMixer
 
-data Music = Music { musicName :: String, unMusic :: SDL.Mixer.Types.Music }
-data Audio = Audio { audioName :: String, unAudio :: SDL.Mixer.Types.Chunk }
+data Music = Music { musicName :: String, unMusic :: Mixer.Music }
+data Audio = Audio { audioName :: String, unAudio :: Mixer.Chunk }
 
 -- | Initialize the audio subsystem.
 --
 -- Audio quality and number of channels are fixed (16).
 initAudio :: IO ()
 initAudio = void $ do
-  _result <- SDL.Mixer.openAudio 44100 SDL.Mixer.AudioS16LSB 2 4096
-  SDL.Mixer.Channels.allocateChannels 16
+  _result <- Mixer.openAudio defaultAudio 4096
+  Mixer.setChannels 16
 
 -- | Load a music file, returning a 'Music' if loaded successfully.
 loadMusic :: String -> IO (Maybe Music)
-loadMusic fp = fmap (Music fp) <$> SDL.Mixer.Music.tryLoadMUS fp
+loadMusic fp = fmap (Music fp) <$> RMixer.loadMUS fp
 
 -- | Play music in a loop at max volume.
 playMusic :: Music -> IO ()
 playMusic m = do
-  SDL.Mixer.Music.setMusicVolume 100
-  SDL.Mixer.Music.playMusic (unMusic m) (-1)
+  Mixer.setMusicVolume 100
+  Mixer.playMusic Forever (unMusic m)
 
 -- | Stop playing music
 stopMusic :: IO ()
-stopMusic = SDL.Mixer.Music.haltMusic
+stopMusic = Mixer.haltMusic
 
 -- | Is music playing?
 musicPlaying :: IO Bool
-musicPlaying = SDL.Mixer.Music.playingMusic
+musicPlaying = Mixer.playingMusic
 
 -- | Load an audio file.
 loadAudio :: String -> IO (Maybe Audio)
-loadAudio fp = fmap (Audio fp) <$> SDL.Mixer.Samples.tryLoadWAV fp
+loadAudio fp = fmap (Audio fp) <$> RMixer.loadWAV fp
 
 -- | Play an audio file for the given number of seconds.
 --
