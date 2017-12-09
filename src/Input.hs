@@ -32,26 +32,19 @@ module Input where
 
 -- External imports
 import Data.IORef
-import Graphics.UI.SDL as SDL
+import SDL
 import Control.Monad
 
--- External imports (Wiimote)
-#ifdef wiimote
 import Control.Monad(void)
 import Control.Monad.IfElse (awhen)
 import Data.Maybe (fromMaybe)
-import System.CWiid
-#endif
-
--- External imports (Kinect)
-#ifdef kinect
+-- import System.CWiid
 import Control.Concurrent
 import Data.Maybe (fromJust)
 import Data.Vector.Storable (Vector,(!))
+-- import Freenect
 import Data.Word
-import Freenect
 import qualified Data.Vector.Storable as V
-#endif
 
 -- Internal imports
 import Control.Extra.Monad
@@ -85,23 +78,27 @@ initializeInputDevices = do
   let baseDev = sdlGetController
 
 -- Fall back to mouse/kb is no kinect is present
-#ifdef kinect
+{-
+-- #ifdef kinect
   print "Kinecting"
   dev <- do kn <- kinectController
             case kn of
               Nothing  -> return baseDev
               Just kn' -> return kn'
-#else
+-- #else
+-}
   let dev = baseDev
-#endif
+-- #endif
 
 -- Fall back to kinect or mouse/kb is no wiimote is present
-#ifdef wiimote
+{-
+-- #ifdef wiimote
   dev' <- do wm <- wiimoteDev
              return $ fromMaybe dev wm
-#else
+-- #else
+-}
   let dev' = dev
-#endif
+-- #endif
 
   nr <- newIORef defaultInfo
   return $ ControllerRef (nr, dev')
@@ -122,9 +119,8 @@ senseInput (ControllerRef (cref, sensor)) = do
   return cinfo'
 
 type ControllerDev = IO (Maybe (Controller -> IO Controller))
-
+{-
 -- * WiiMote API (mid-level)
-#ifdef wiimote
 
 -- | The wiimote controller as defined using this
 -- abstract interface. See 'initializeWiimote'.
@@ -144,6 +140,7 @@ initializeWiimote = do
   case wm of
    Nothing -> return Nothing
    Just wm' -> return $ Just $ senseWiimote wm'
+-}
 
 -- ** Sensing
 
@@ -157,6 +154,7 @@ initializeWiimote = do
 --
 -- TODO: This should be split in two operations. One that presents a nice
 -- Wii-like interface and one that actually updates the controller
+{-
 senseWiimote :: CWiidWiimote -> Controller -> IO Controller
 senseWiimote wmdev controller = do
   flags <- cwiidGetBtnState wmdev
@@ -196,8 +194,8 @@ senseWiimote wmdev controller = do
   return (controller { controllerPos   = (finX, finY) -- pos'
                      , controllerClick = isClick
                      })
-#endif
-
+-}
+ 
 -- * SDL API (mid-level)
 
 -- ** Initialization
@@ -217,24 +215,59 @@ sdlMouseKB = return (Just sdlGetController)
 -- TODO: Check http://gameprogrammer.com/fastevents/fastevents1.html
 sdlGetController :: Controller -> IO Controller
 sdlGetController info =
-  foldLoopM info pollEvent (not.isEmptyEvent) ((return .) . handleEvent)
+  foldLoopM info SDL.pollEvent ((return .) . handleEvent)
 
 -- | Handles one event only and returns the updated controller.
-handleEvent :: Controller -> SDL.Event -> Controller
-handleEvent c e =
-  case e of
-    MouseMotion x y _ _                      -> c { controllerPos   = (fromIntegral x, fromIntegral y)}
-    MouseButtonDown _ _ ButtonLeft           -> c { controllerClick = True }
-    MouseButtonUp   _ _ ButtonLeft           -> c { controllerClick = False} 
-    KeyUp Keysym { symKey = SDLK_p }         -> c { controllerPause = not (controllerPause c) }
-    KeyDown Keysym { symKey = SDLK_SPACE }   -> c { controllerClick = True  }
-    KeyUp Keysym { symKey = SDLK_SPACE }     -> c { controllerClick = False }
+handleEvent :: Controller -> Maybe SDL.Event -> Controller
+handleEvent c Nothing = c
+handleEvent c (Just e) =
+  case SDL.eventPayload e of
+    SDL.MouseMotionEvent (SDL.MouseMotionEventData {SDL.mouseMotionEventPos = SDL.P (SDL.V2 x y)})
+        -> c { controllerPos   = (fromIntegral x, fromIntegral y)}
+    SDL.MouseButtonEvent mbed
+       | isButtonDown mbed && isButtonLeft mbed -> c { controllerClick = True }
+       | isButtonUp mbed && isButtonLeft mbed -> c { controllerClick = False} 
+                                             
+    SDL.KeyboardEvent kbed
+       | isKeyUp kbed && isPKey kbed -> c { controllerPause = not (controllerPause c) }
+       | isKeyDown kbed && isSpaceKey kbed -> c { controllerClick = True  }
+       | isKeyUp kbed && isSpaceKey kbed ->  c { controllerClick = False }
     _                                        -> c
 
+isButtonLeft :: MouseButtonEventData -> Bool
+isButtonLeft (MouseButtonEventData _ _ _ b _ _) =
+    case b of
+      ButtonLeft -> True
+      _ -> False
 
+isButtonDown :: MouseButtonEventData -> Bool
+isButtonDown (MouseButtonEventData _ m _ _ _ _) =
+   case m of Pressed -> True; _ -> False
+
+isButtonUp :: MouseButtonEventData -> Bool
+isButtonUp (MouseButtonEventData _ m _ _ _ _) =
+    case m of Released -> True; _ -> False
+                          
+isKeyUp :: KeyboardEventData -> Bool
+isKeyUp (KeyboardEventData {keyboardEventKeyMotion = Pressed }) = True
+isKeyUp _ = False
+
+isKeyDown = not . isKeyUp
+                                                              
+isPKey :: KeyboardEventData -> Bool
+isPKey (KeyboardEventData {keyboardEventKeysym = ks}) =
+    case keysymKeycode ks of
+      KeycodeP -> True
+      _ -> False
+
+isSpaceKey :: KeyboardEventData -> Bool
+isSpaceKey (KeyboardEventData {keyboardEventKeysym = ks}) =
+    case keysymKeycode ks of
+      KeycodeSpace -> True
+      _ -> False
+
+{-
 -- Kinect
-
-#ifdef kinect
 kinectController :: ControllerDev
 kinectController = do
   kref <- initializeKinect (gameWidth, gameHeight)
@@ -328,6 +361,4 @@ adjust maxD old new
   | abs (old - new) < maxD = new
   | old < new              = old + maxD
   | otherwise              = old - maxD
-
-#endif
-
+-}

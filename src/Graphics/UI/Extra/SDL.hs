@@ -1,12 +1,7 @@
 module Graphics.UI.Extra.SDL where
 
 import Data.IORef
-import Graphics.UI.SDL as SDL
-
--- Auxiliary SDL stuff
-isEmptyEvent :: Event -> Bool
-isEmptyEvent NoEvent = True
-isEmptyEvent _       = False
+import SDL
 
 initializeTimeRef :: IO (IORef Int)
 initializeTimeRef = do
@@ -22,7 +17,7 @@ initializeTimeRef = do
 senseTimeRef :: IORef Int -> IO Int
 senseTimeRef timeRef = do
   -- Get time passed since SDL init
-  newTime <- fmap fromIntegral SDL.getTicks
+  newTime <- fmap fromIntegral SDL.ticks
 
   -- Obtain time difference
   dt <- updateTime timeRef newTime
